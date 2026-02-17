@@ -1,52 +1,57 @@
-namespace :shop_photos do
-  desc "既存店舗の写真を一括取得"
-  task fetch: :environment do
-    shops = Shop.where("photos = '[]' OR photos IS NULL")
+namespace :shops do
+  desc "Update photo_url for all shops"
+  task update_all_photo_urls: :environment do
+    require 'net/http'
+    require 'json'
     
-    puts "=" * 50
-    puts "既存店舗の写真を一括取得します"
-    puts "対象店舗数: #{shops.count}件"
-    puts "=" * 50
+    api_key = ENV['PLACES_API_KEY']
     
-    success_count = 0
-    error_count = 0
+    shops = Shop.all
     
-    shops.find_each.with_index(1) do |shop, index|
-      if shop.place_id.blank?
-        puts "[#{index}/#{shops.count}] スキップ: #{shop.name} (place_idが存在しません)"
-        error_count += 1
-        next
-      end
-      
-      puts "[#{index}/#{shops.count}] 取得中: #{shop.name}"
-      
+    puts "📊 Found #{shops.count} shops"
+    
+    shops.find_each do |shop|
       begin
-        service = GooglePlacesService.new
-        photo_data = service.fetch_photos(shop.place_id, max_photos: 9)
+        place_details = fetch_place_details(shop.place_id, api_key)
         
-        if photo_data.present?
-          shop.update_columns(
-            photos: photo_data,
-            photos_cached_at: Time.current
-          )
-          puts "  ✅ #{photo_data.count}枚の写真を保存しました"
-          success_count += 1
+        photo_url = photo_url_from(place_details, api_key)
+        
+        if photo_url.present?
+          shop.update!(photo_url: photo_url)
+          puts "✅ Updated photo_url for #{shop.name}"
         else
-          puts "  ⚠️  写真が見つかりませんでした"
-          error_count += 1
+          puts "⚠️  No photo available for #{shop.name}"
         end
         
-        sleep 1
+        sleep(0.5)
         
       rescue => e
-        puts "  ❌ エラー: #{e.message}"
-        error_count += 1
+        puts "❌ Failed to update #{shop.name}: #{e.message}"
       end
     end
     
-    puts "=" * 50
-    puts "完了"
-    puts "成功: #{success_count}件 / 失敗: #{error_count}件"
-    puts "=" * 50
+    puts "🎉 Finished updating photo_urls for all shops"
+  end
+  
+  private
+  
+  def fetch_place_details(place_id, api_key)
+    url = "https://maps.googleapis.com/maps/api/place/details/json?place_id=#{place_id}&fields=photos&key=#{api_key}"
+    uri = URI(url)
+    response = Net::HTTP.get(uri)
+    result = JSON.parse(response)
+    
+    if result["status"] != "OK"
+      raise "API Error: #{result['status']}"
+    end
+    
+    result["result"]
+  end
+  
+  def photo_url_from(place, api_key)
+    return nil unless place && place["photos"]&.any?
+    
+    photo_reference = place["photos"].first["photo_reference"]
+    "https://maps.googleapis.com/maps/api/place/photo?maxheight=600&photoreference=#{photo_reference}&key=#{api_key}"
   end
 end

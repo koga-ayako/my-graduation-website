@@ -6,12 +6,8 @@
           <input type="text" 
                 id="searchInput" 
                 class="form-control"
-                placeholder="地名/場所で検索">
+                placeholder="地名・駅・建物名で検索">
         </div>
-
-        <button id="searchBtn" class="btn-ramen-hover">
-          検索
-        </button>
       </div>
   
       <div class="text-center">
@@ -55,8 +51,6 @@
 
 <script>
 let map;
-let geocoder;
-let placesService;
 let currentLocationMarker;
 let shopMarkers = [];
 let sharedInfoWindow;
@@ -157,22 +151,6 @@ function onPlaceChanged() {
   }
 }
 
-// Google Maps の検索 API(Places)
-function searchLocation() {
-  const keyword = document.getElementById("searchInput").value.trim();
-  if (!keyword) return;
-
-  placesService.textSearch({ query: keyword }, (results, status) => {
-    if (status === google.maps.places.PlacesServiceStatus.OK && results.length > 0) {
-      const loc = results[0].geometry.location;
-      showSearchResultMarker(loc, results[0].name, results[0].formatted_address);
-      map.setZoom(15);
-    } else {
-      alert("該当する場所が見つかりませんでした");
-    }
-  });
-}
-
 // 店舗へ経路案内
 async function navigateToShop(shop) {
   if (!shop.latitude || !shop.longitude) {
@@ -259,8 +237,6 @@ async function initMap() {
     zoom: initialZoom
   });
 
-  geocoder = new google.maps.Geocoder();
-  placesService = new google.maps.places.PlacesService(map);
   sharedInfoWindow = new google.maps.InfoWindow();
 
   // オートコンプリート設定
@@ -277,18 +253,7 @@ async function initMap() {
   
   // イベントリスナー設定
   document.getElementById("getCurrentLocationBtn").addEventListener("click", showCurrentLocation);
-  document.getElementById("searchBtn").addEventListener("click", searchLocation);
 
-  document.getElementById("searchInput").addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const place = autocomplete.getPlace();
-      if (!place || !place.geometry) {
-        searchLocation();
-      }
-    }
-  });
-  
   // ラーメン店マーカー(全表示)
   shops.forEach((shop) => {
     if (!shop.latitude || !shop.longitude) {
